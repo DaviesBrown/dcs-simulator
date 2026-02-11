@@ -3,38 +3,418 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DCS Operator Assessment Panel</title>
+    <title>DCS Tactical Assessment</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root {
             --panel-bg: #1e2246;
-            --module-bg: #2a2f5b;
             --accent-blue: #4d61ff;
             --accent-red: #ff4d4d;
             --accent-green: #4dff88;
-            --text-main: #e0e6ed;
         }
 
         body {
             background-color: #0f1123;
-            color: var(--text-main);
+            color: #e0e6ed;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             margin: 0;
-            padding: 20px;
             overflow: hidden;
         }
 
         .glass-panel {
             background: linear-gradient(145deg, #242952, #1a1e3d);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(77, 97, 255, 0.1);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
             border-radius: 12px;
             padding: 24px;
             width: 100%;
+            max-width: 850px;
+            position: relative;
+        }
+
+        .module {
+            background: #252b52;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            position: relative;
+        }
+
+        .btn-tactical {
+            background: linear-gradient(to bottom, #4d61ff, #3041c7);
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 4px 0 #1a237e;
+            transition: all 0.05s;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            color: white;
+        }
+
+        .btn-tactical:active { transform: translateY(2px); box-shadow: 0 2px 0 #1a237e; }
+        .btn-red { background: linear-gradient(to bottom, #ff4d4d, #c73030); box-shadow: 0 4px 0 #7e1a1a; }
+        .btn-green { background: linear-gradient(to bottom, #4dff88, #30c765); box-shadow: 0 4px 0 #1a7e3a; color: #0f1123; }
+
+        .vertical-meter {
+            height: 100px;
+            width: 12px;
+            background: #11142b;
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .meter-fill {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            transition: height 0.3s ease;
+        }
+
+        .circular-gauge {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: #1a1e3d;
+            border: 4px solid #2a2f5b;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .needle {
+            position: absolute;
+            width: 2px;
+            height: 40%;
+            background: white;
+            bottom: 50%;
+            left: calc(50% - 1px);
+            transform-origin: bottom center;
+            transition: transform 0.2s ease-out;
+        }
+
+        .status-box {
+            background: #0a0c1a;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        #overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 17, 35, 0.98);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 30px;
+            border-radius: 12px;
+        }
+
+        .active-red { box-shadow: 0 0 15px #ff4d4d !important; border-color: #ff4d4d !important; }
+        .active-blue { box-shadow: 0 0 15px #4d61ff !important; border-color: #4d61ff !important; }
+        
+        @keyframes pulse-red { 0% { opacity: 0.3; } 100% { opacity: 1; } }
+        .critical-flash { animation: pulse-red 0.3s infinite alternate; }
+    </style>
+</head>
+<body>
+
+    <div class="glass-panel" id="main-panel">
+        
+        <div id="overlay">
+            <h1 class="text-3xl font-bold mb-4">TACTICAL OPERATOR ASSESSMENT</h1>
+            <div class="text-left text-sm space-y-2 mb-6 max-w-md bg-slate-900/50 p-4 rounded border border-slate-700">
+                <p>• <strong>TEMP HIGH:</strong> Press HIGH. On the 3rd time, press 3rd HIGH.</p>
+                <p>• <strong>GAS LOW:</strong> CO₂ low? Press RESET. CO₂ & O₂ both low? Press ALARM.</p>
+                <p>• <strong>STABILITY:</strong> One side destabilized? Press its Reset. Both? Press RECENTRE.</p>
+                <p>• <strong>POWER:</strong> If Generator goes HIGH, turn it OFF immediately.</p>
+                <p class="text-yellow-400 font-bold">• WINDOW: You have 5 seconds to react to any deviation!</p>
+            </div>
+            <button onclick="startGame()" class="btn-tactical px-10 py-3 rounded-lg text-lg">Initialize Systems</button>
+            <div id="score-report" class="hidden mt-4">
+                <p class="text-2xl text-yellow-500">FINAL SCORE: <span id="final-score">0</span></p>
+                <p id="rank-name" class="text-xs opacity-60 mt-2"></p>
+            </div>
+        </div>
+
+        <div class="flex justify-between items-center mb-6">
+            <div class="status-box text-blue-400">SCORE: <span id="score-val">0</span></div>
+            <div class="status-box text-xl text-yellow-500" id="timer">03:00</div>
+            <div class="status-box text-red-500">ERRORS: <span id="error-val">0</span></div>
+        </div>
+
+        <!-- Row 1: Power & Temp Tracking -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div class="module flex flex-col items-center justify-between" id="mod-gen">
+                <span class="text-[10px] mb-2">GENERATOR POWER</span>
+                <div class="w-full h-4 bg-slate-900 rounded relative overflow-hidden">
+                    <div id="gen-fill" class="h-full bg-blue-500 transition-all duration-300" style="width: 50%;"></div>
+                </div>
+                <button id="gen-btn" onclick="handleAction('gen_toggle')" class="btn-tactical w-full py-2 rounded mt-4">ON / OFF</button>
+            </div>
+
+            <div class="module flex flex-col items-center justify-center" id="mod-temp">
+                <span class="text-[10px] mb-2">TEMPERATURE TRACKER</span>
+                <div class="flex space-x-2 mb-4">
+                    <div id="t-lite-1" class="w-4 h-4 rounded-full bg-slate-800"></div>
+                    <div id="t-lite-2" class="w-4 h-4 rounded-full bg-slate-800"></div>
+                    <div id="t-lite-3" class="w-4 h-4 rounded-full bg-slate-800"></div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 w-full">
+                    <button onclick="handleAction('temp_high')" class="btn-tactical py-1 rounded">High</button>
+                    <button onclick="handleAction('temp_3rd')" class="btn-tactical py-1 rounded">3rd High</button>
+                </div>
+            </div>
+
+            <div class="module col-span-2 flex justify-around items-center" id="mod-gas">
+                <div class="flex flex-col items-center">
+                    <span class="text-[10px] mb-1">O₂ LEVEL</span>
+                    <div class="vertical-meter"><div id="o2-fill" class="meter-fill bg-blue-400" style="height: 60%;"></div></div>
+                </div>
+                <div class="flex flex-col items-center">
+                    <span class="text-[10px] mb-1">CO₂ LEVEL</span>
+                    <div class="vertical-meter"><div id="co2-fill" class="meter-fill bg-white" style="height: 60%;"></div></div>
+                </div>
+                <div class="flex flex-col space-y-2">
+                    <button onclick="handleAction('gas_reset')" class="btn-tactical px-4 py-2 rounded">Reset</button>
+                    <button id="alarm-btn" onclick="handleAction('gas_alarm')" class="btn-red btn-tactical px-4 py-2 rounded">Alarm</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 2: Dual System Stability -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div class="module flex flex-col items-center" id="mod-sys-a">
+                <span class="text-[10px] mb-2">SYSTEM A (LEFT)</span>
+                <div class="circular-gauge">
+                    <div id="needle-a" class="needle"></div>
+                </div>
+                <button onclick="handleAction('reset_a')" class="btn-tactical w-full mt-4 py-1 rounded">Reset A</button>
+            </div>
+
+            <div class="module flex flex-col items-center justify-center bg-slate-900/40">
+                <span class="text-[10px] mb-4">DUAL DESYNC COMMAND</span>
+                <button onclick="handleAction('recentre')" class="btn-tactical px-8 py-4 rounded-lg bg-blue-600 shadow-lg">RECENTRE</button>
+            </div>
+
+            <div class="module flex flex-col items-center" id="mod-sys-b">
+                <span class="text-[10px] mb-2">SYSTEM B (RIGHT)</span>
+                <div class="circular-gauge">
+                    <div id="needle-b" class="needle"></div>
+                </div>
+                <button onclick="handleAction('reset_b')" class="btn-tactical w-full mt-4 py-1 rounded">Reset B</button>
+            </div>
+        </div>
+
+        <div class="module border-t-4 border-red-600">
+            <button onclick="handleAction('system_reset')" class="btn-red btn-tactical w-full py-2 rounded font-bold">MASTER SYSTEM RESET</button>
+            <p class="text-[9px] text-center mt-2 opacity-50 uppercase tracking-widest">Resets temperature count and all levels to 50%</p>
+        </div>
+    </div>
+
+    <script>
+        let gameActive = false;
+        let score = 0;
+        let errors = 0;
+        let timeLeft = 180;
+        let tempHighCount = 0;
+        let genStatus = true; // true = ON
+        let lastEventTime = 0;
+        let activeDeviations = [];
+
+        // Values (0-100)
+        let vals = { gen: 50, temp: 40, o2: 50, co2: 50, sysA: 0, sysB: 0 };
+
+        function startGame() {
+            gameActive = true;
+            score = 0;
+            errors = 0;
+            timeLeft = 180;
+            tempHighCount = 0;
+            vals = { gen: 50, temp: 40, o2: 50, co2: 50, sysA: 0, sysB: 0 };
+            activeDeviations = [];
+            document.getElementById('overlay').classList.add('hidden');
+            document.getElementById('score-report').classList.add('hidden');
+            requestAnimationFrame(gameLoop);
+        }
+
+        function handleAction(action) {
+            if (!gameActive) return;
+
+            let caught = false;
+
+            if (action === 'gen_toggle') {
+                genStatus = !genStatus;
+                if (!genStatus && vals.gen > 85) { caught = true; removeDeviation('GEN_HIGH'); score += 100; }
+                else score -= 20; 
+            }
+
+            if (action === 'temp_high') {
+                if (vals.temp > 80 && tempHighCount < 2) {
+                    tempHighCount++;
+                    vals.temp = 40;
+                    caught = true;
+                    removeDeviation('TEMP_HIGH');
+                    score += 150;
+                } else { score -= 100; }
+            }
+
+            if (action === 'temp_3rd') {
+                if (vals.temp > 80 && tempHighCount === 2) {
+                    tempHighCount = 0;
+                    vals.temp = 40;
+                    caught = true;
+                    removeDeviation('TEMP_HIGH');
+                    score += 300;
+                } else { score -= 200; }
+            }
+
+            if (action === 'gas_reset') {
+                if (vals.co2 < 20 && vals.o2 >= 20) {
+                    vals.co2 = 50; caught = true; removeDeviation('CO2_LOW'); score += 100;
+                } else score -= 50;
+            }
+
+            if (action === 'gas_alarm') {
+                if (vals.co2 < 20 && vals.o2 < 20) {
+                    vals.co2 = 50; vals.o2 = 50; caught = true; removeDeviation('GAS_DUAL_LOW'); score += 200;
+                } else score -= 100;
+            }
+
+            if (action === 'reset_a') {
+                if (Math.abs(vals.sysA) > 70 && Math.abs(vals.sysB) <= 70) {
+                    vals.sysA = 0; caught = true; removeDeviation('SYS_A'); score += 100;
+                } else score -= 50;
+            }
+
+            if (action === 'reset_b') {
+                if (Math.abs(vals.sysB) > 70 && Math.abs(vals.sysA) <= 70) {
+                    vals.sysB = 0; caught = true; removeDeviation('SYS_B'); score += 100;
+                } else score -= 50;
+            }
+
+            if (action === 'recentre') {
+                if (Math.abs(vals.sysA) > 70 && Math.abs(vals.sysB) > 70) {
+                    vals.sysA = 0; vals.sysB = 0; caught = true; removeDeviation('SYS_DUAL'); score += 250;
+                } else score -= 100;
+            }
+
+            if (action === 'system_reset') {
+                score -= 500;
+                tempHighCount = 0;
+                vals = { gen: 50, temp: 40, o2: 50, co2: 50, sysA: 0, sysB: 0 };
+                activeDeviations = [];
+            }
+
+            updateUI();
+        }
+
+        function removeDeviation(id) {
+            activeDeviations = activeDeviations.filter(d => d.id !== id);
+        }
+
+        function triggerDeviation(id) {
+            if (activeDeviations.find(d => d.id === id)) return;
+            activeDeviations.push({ id, time: Date.now() });
+        }
+
+        function gameLoop() {
+            if (!gameActive) return;
+
+            timeLeft -= 0.016; // Approx 60fps
+            if (timeLeft <= 0) { endGame(); return; }
+
+            // Drift logic
+            if (genStatus) vals.gen += 0.15; else vals.gen -= 0.5;
+            vals.temp += 0.12;
+            vals.o2 -= 0.08;
+            vals.co2 -= 0.1;
+            vals.sysA += (Math.random() - 0.5) * 4;
+            vals.sysB += (Math.random() - 0.5) * 4;
+
+            // Constrain
+            Object.keys(vals).forEach(k => vals[k] = Math.max(0, Math.min(100, vals[k])));
+
+            // Detect Deviations (The 5-second window triggers here)
+            if (vals.gen > 85) triggerDeviation('GEN_HIGH');
+            if (vals.temp > 80) triggerDeviation('TEMP_HIGH');
+            if (vals.co2 < 20 && vals.o2 >= 20) triggerDeviation('CO2_LOW');
+            if (vals.co2 < 20 && vals.o2 < 20) { removeDeviation('CO2_LOW'); triggerDeviation('GAS_DUAL_LOW'); }
+            
+            let aFail = Math.abs(vals.sysA) > 70;
+            let bFail = Math.abs(vals.sysB) > 70;
+            if (aFail && bFail) { removeDeviation('SYS_A'); removeDeviation('SYS_B'); triggerDeviation('SYS_DUAL'); }
+            else if (aFail) triggerDeviation('SYS_A');
+            else if (bFail) triggerDeviation('SYS_B');
+
+            // Check for timeout
+            const now = Date.now();
+            activeDeviations.forEach(d => {
+                if (now - d.time > 5000) { // 5 Second Window
+                    errors++;
+                    score -= 300;
+                    removeDeviation(d.id);
+                    // Force reset the problem to give player a fresh chance
+                    if (d.id === 'TEMP_HIGH') vals.temp = 40;
+                    if (d.id === 'GEN_HIGH') vals.gen = 50;
+                }
+            });
+
+            updateUI();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateUI() {
+            document.getElementById('timer').innerText = `0${Math.floor(timeLeft/60)}:${Math.floor(timeLeft%60).toString().padStart(2, '0')}`;
+            document.getElementById('score-val').innerText = Math.floor(score);
+            document.getElementById('error-val').innerText = errors;
+
+            // Power
+            document.getElementById('gen-fill').style.width = vals.gen + '%';
+            document.getElementById('mod-gen').className = `module flex flex-col items-center justify-between ${vals.gen > 85 ? 'active-red critical-flash' : ''}`;
+
+            // Temp lights
+            for(let i=1; i<=3; i++) {
+                document.getElementById(`t-lite-${i}`).className = `w-4 h-4 rounded-full ${tempHighCount >= i ? 'bg-red-500 shadow-[0_0_8px_red]' : 'bg-slate-800'}`;
+            }
+            document.getElementById('mod-temp').className = `module flex flex-col items-center justify-center ${vals.temp > 80 ? 'active-red critical-flash' : ''}`;
+
+            // Gas
+            document.getElementById('o2-fill').style.height = vals.o2 + '%';
+            document.getElementById('co2-fill').style.height = vals.co2 + '%';
+            document.getElementById('mod-gas').className = `module col-span-2 flex justify-around items-center ${(vals.o2 < 20 || vals.co2 < 20) ? 'active-blue' : ''}`;
+
+            // Stability
+            document.getElementById('needle-a').style.transform = `rotate(${vals.sysA * 1.4}deg)`;
+            document.getElementById('needle-b').style.transform = `rotate(${vals.sysB * 1.4}deg)`;
+            document.getElementById('mod-sys-a').className = `module flex flex-col items-center ${Math.abs(vals.sysA) > 70 ? 'active-red critical-flash' : ''}`;
+            document.getElementById('mod-sys-b').className = `module flex flex-col items-center ${Math.abs(vals.sysB) > 70 ? 'active-red critical-flash' : ''}`;
+        }
+
+        function endGame() {
+            gameActive = false;
+            document.getElementById('overlay').classList.remove('hidden');
+            document.getElementById('score-report').classList.remove('hidden');
+            document.getElementById('final-score').innerText = Math.floor(score);
+            let rank = "INFERIOR OPERATOR";
+            if (score > 4000) rank = "QUALIFIED TECH";
+            if (score > 7000) rank = "ELITE SYSTEM MASTER";
+            document.getElementById('rank-name').innerText = rank;
+        }
+    </script>
+</body>
+</html>            width: 100%;
             max-width: 800px;
             position: relative;
         }
